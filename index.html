@@ -78,7 +78,7 @@ const db = {
 };
 
 // ── STATE ──────────────────────────────────────────────────────────────────
-const S = { users:[], statuses:[], referrals:[], records:[], user:null, page:'tracker', modal:null, filter:'All', search:'', adminTab:'users', sortField:'id', sortDir:'asc', filterMonth:'' };
+const S = { users:[], statuses:[], referrals:[], records:[], user:null, page:'tracker', modal:null, filter:'All', search:'', adminTab:'users', sortField:'id', sortDir:'asc', filterMonth:'', filterAttemptMonth:'' };
 
 // ── UTILS ──────────────────────────────────────────────────────────────────
 const uid = () => 'x' + Math.random().toString(36).slice(2,9);
@@ -178,7 +178,7 @@ function shell(inner) {
   const pr = S.referrals.filter(r => !r.approved).length;
   const isA = S.user.role === 'admin';
   const NAVY = '#1B2A4A';
-  return '<div style="min-height:100vh"><header style="background:' + NAVY + ';padding:0 20px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10"><div style="display:flex;align-items:center;gap:16px"><img src="' + LOGO + '" style="height:30px;width:auto;filter:brightness(0) invert(1)" alt="Medora"/><div style="display:flex;gap:4px"><button class="tab ' + (S.page==='tracker'?'on':'') + '" id="nav-tracker" style="color:' + (S.page==='tracker'?'#fff':'#8BA0C0') + '">Tracker</button>' + (isA ? '<button class="tab ' + (S.page==='admin'?'on':'') + '" id="nav-admin" style="color:' + (S.page==='admin'?'#fff':'#8BA0C0') + '">Admin' + (pr > 0 ? ' <span style="background:#FAECE7;color:#993C1D;border-radius:20px;padding:1px 7px;font-size:11px">' + pr + '</span>' : '') + '</button>' : '') + '</div></div><div style="display:flex;align-items:center;gap:10px"><button id="nav-pw" style="background:none;border:none;color:#8BA0C0;font-size:12px;cursor:pointer;padding:4px 8px">🔑 ' + h(S.user.name) + '</button><button id="nav-out" class="btn btn-outline" style="border-color:#8BA0C0;color:#ccc;padding:5px 12px;font-size:12px">Sign out</button></div></header>' + inner + '</div>';
+  return '<div style="min-height:100vh"><header style="background:' + NAVY + ';padding:0 20px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10"><div style="display:flex;align-items:center;gap:16px"><img src="' + LOGO + '" style="height:36px;width:auto;mix-blend-mode:screen;border-radius:4px" alt="Medora"/><div style="display:flex;gap:4px"><button class="tab ' + (S.page==='tracker'?'on':'') + '" id="nav-tracker" style="color:' + (S.page==='tracker'?'#fff':'#8BA0C0') + '">Tracker</button>' + (isA ? '<button class="tab ' + (S.page==='admin'?'on':'') + '" id="nav-admin" style="color:' + (S.page==='admin'?'#fff':'#8BA0C0') + '">Admin' + (pr > 0 ? ' <span style="background:#FAECE7;color:#993C1D;border-radius:20px;padding:1px 7px;font-size:11px">' + pr + '</span>' : '') + '</button>' : '') + '</div></div><div style="display:flex;align-items:center;gap:10px"><button id="nav-pw" style="background:none;border:none;color:#8BA0C0;font-size:12px;cursor:pointer;padding:4px 8px">🔑 ' + h(S.user.name) + '</button><button id="nav-out" class="btn btn-outline" style="border-color:#8BA0C0;color:#ccc;padding:5px 12px;font-size:12px">Sign out</button></div></header>' + inner + '</div>';
 }
 
 // ── TRACKER ────────────────────────────────────────────────────────────────
@@ -186,18 +186,17 @@ function trackerPage() {
   const NAVY = '#1B2A4A', TEAL = '#2BA8B4';
 
   // Month filter options from existing records
-  const months = [...new Set(S.records
-    .map(r => (r.referral_date||r.date_of_attempt||'').slice(0,7))
-    .filter(Boolean)
-  )].sort().reverse();
+  const refMonths = [...new Set(S.records.map(r=>(r.referral_date||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  const attMonths = [...new Set(S.records.map(r=>(r.date_of_attempt||'').slice(0,7)).filter(Boolean))].sort().reverse();
 
   // Filter
   let filt = S.records.filter(r => {
     const ms = S.filter === 'All' || r.status === S.filter;
     const q = S.search.toLowerCase();
     const matchQ = !q || (r.patient_name||'').toLowerCase().includes(q) || (r.patient_phone||'').includes(q) || (r.caregiver_name||'').toLowerCase().includes(q);
-    const matchM = !S.filterMonth || (r.referral_date||r.date_of_attempt||'').startsWith(S.filterMonth);
-    return ms && matchQ && matchM;
+    const matchRefM = !S.filterMonth || (r.referral_date||'').startsWith(S.filterMonth);
+    const matchAttM = !S.filterAttemptMonth || (r.date_of_attempt||'').startsWith(S.filterAttemptMonth);
+    return ms && matchQ && matchRefM && matchAttM;
   });
 
   // Sort
@@ -266,8 +265,10 @@ function trackerPage() {
       '</tr>'
     ).join('');
 
-  const monthOpts = '<option value="">All months</option>' +
-    months.map(m => '<option value="' + m + '" ' + (S.filterMonth===m?'selected':'') + '>' + m + '</option>').join('');
+  const refMonthOpts = '<option value="">All referral months</option>' +
+    refMonths.map(m => '<option value="' + m + '" ' + (S.filterMonth===m?'selected':'') + '>' + m + '</option>').join('');
+  const attMonthOpts = '<option value="">All attempt months</option>' +
+    attMonths.map(m => '<option value="' + m + '" ' + (S.filterAttemptMonth===m?'selected':'') + '>' + m + '</option>').join('');
 
   return '<div style="max-width:1200px;margin:0 auto;padding:20px 14px">' +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px">' + cards + '</div>' +
@@ -278,13 +279,15 @@ function trackerPage() {
         '<option value="All" ' + (S.filter==='All'?'selected':'') + '>All statuses</option>' +
         S.statuses.filter(s=>s.active).map(s=>'<option value="' + h(s.label) + '" ' + (S.filter===s.label?'selected':'') + '>' + h(s.label) + '</option>').join('') +
       '</select>' +
-      '<select id="mfilt" class="sel" style="width:auto">' + monthOpts + '</select>' +
+      '<select id="mfilt-ref" class="sel" style="width:auto" title="Filter by referral date month"><option value="">All referral months</option>' + refMonths.map(m=>'<option value="'+m+'" '+(S.filterMonth===m?'selected':'')+'>Ref: '+m+'</option>').join('') + '</select>' +
+      '<select id="mfilt-att" class="sel" style="width:auto" title="Filter by date of attempt month"><option value="">All attempt months</option>' + attMonths.map(m=>'<option value="'+m+'" '+(S.filterAttemptMonth===m?'selected':'')+'>Att: '+m+'</option>').join('') + '</select>' +
       '<button id="btn-export" class="btn btn-outline" style="white-space:nowrap">⬇ Export CSV</button>' +
       '<button id="btn-add" class="btn btn-navy">+ Add record</button>' +
     '</div>' +
     '<div style="overflow-x:auto"><table><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
     '<div style="padding:9px 14px;border-top:0.5px solid #E4E7EC;font-size:12px;color:#999">' + filt.length + ' of ' + S.records.length + ' records' +
-      (S.filterMonth ? ' &nbsp;·&nbsp; Filtered: <strong>' + S.filterMonth + '</strong>' : '') +
+      (S.filterMonth ? ' &nbsp;·&nbsp; Referral: <strong>' + S.filterMonth + '</strong>' : '') +
+      (S.filterAttemptMonth ? ' &nbsp;·&nbsp; Attempt: <strong>' + S.filterAttemptMonth + '</strong>' : '') +
     '</div>' +
     '</div></div>';
 }
@@ -297,7 +300,8 @@ function bindTracker() {
   const no = $('nav-out'); if(no) no.onclick = () => { S.user=null; sessionStorage.clear(); S.modal=null; render(); };
   const sr = $('srch'); if(sr) sr.oninput = e => { S.search=e.target.value; rerender(); };
   const sf = $('sfilt'); if(sf) sf.onchange = e => { S.filter=e.target.value; rerender(); };
-  const mf = $('mfilt'); if(mf) mf.onchange = e => { S.filterMonth=e.target.value; rerender(); };
+  const mfr = $('mfilt-ref'); if(mfr) mfr.onchange = e => { S.filterMonth=e.target.value; rerender(); };
+  const mfa = $('mfilt-att'); if(mfa) mfa.onchange = e => { S.filterAttemptMonth=e.target.value; rerender(); };
   const ba = $('btn-add'); if(ba) ba.onclick = () => openModal('add', newRec());
 
   // Sort column headers
