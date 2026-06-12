@@ -228,14 +228,12 @@ function trackerPage() {
     {label:'Patient Name',field:'patient_name'},
     {label:'Phone',       field:'patient_phone'},
     {label:'Referral Date',field:'referral_date'},
-    {label:'Caregiver',   field:'caregiver_name'},
-    {label:'Relationship',field:'caregiver_relationship'},
+    {label:'Referred For',field:''},
     {label:'Referral Src',field:'referral_source'},
     {label:'Eligibility', field:'eligibility_confirmed'},
     {label:'Attempt #',   field:'attempt_number'},
     {label:'Date',        field:'date_of_attempt'},
     {label:'Voicemail',   field:'voicemail_left'},
-    {label:'Callback',    field:'callback_datetime'},
     {label:'',            field:''},
   ];
 
@@ -253,14 +251,12 @@ function trackerPage() {
       '<td style="font-weight:500;color:' + NAVY + ';white-space:nowrap">' + h(r.patient_name) + '</td>' +
       '<td style="color:#667085">' + h(r.patient_phone) + '</td>' +
       '<td style="color:#667085;white-space:nowrap">' + (r.referral_date||'<span style="color:#ccc">—</span>') + '</td>' +
-      '<td>' + (h(r.caregiver_name)||'<span style="color:#ccc">—</span>') + '</td>' +
-      '<td style="color:#667085">' + (h(r.caregiver_relationship)||'—') + '</td>' +
+      '<td style="white-space:nowrap">' + ((r.referred_for&&r.referred_for.length) ? r.referred_for.map(x=>'<span class="badge" style="background:#E6F1FB;color:#185FA5;margin-right:3px">'+h(x)+'</span>').join('') : '<span style="color:#ccc">—</span>') + '</td>' +
       '<td style="color:#667085">' + (h(r.referral_source)||'—') + '</td>' +
       '<td>' + eligBadge(r.eligibility_confirmed) + '</td>' +
       '<td style="text-align:center">' + (r.attempt_number||'—') + '</td>' +
       '<td style="color:#667085;white-space:nowrap">' + (r.date_of_attempt||'—') + '</td>' +
       '<td style="color:' + (r.voicemail_left==='Yes'?'#0F6E56':r.voicemail_left==='No'?'#993C1D':'#667085') + '">' + (r.voicemail_left||'—') + '</td>' +
-      '<td style="color:#667085;white-space:nowrap">' + (r.callback_datetime ? r.callback_datetime.replace('T',' ') : '—') + '</td>' +
       '<td>' + (canEdit(r) ? '<span class="edit-rec" data-id="' + r.id + '" style="color:' + TEAL + ';cursor:pointer;font-size:12px">Edit</span>' : '') + '</td>' +
       '</tr>'
     ).join('');
@@ -329,7 +325,7 @@ function bindTracker() {
 }
 
 function exportCSV() {
-  const headers = ['Status','Patient Name','Patient Phone','Referral Date','Caregiver Name',
+  const headers = ['Status','Patient Name','Patient Phone','Referral Date','Referred For','Caregiver Name',
     'Caregiver Relationship','Caregiver Phone','Caregiver Email','Referral Source',
     'Eligibility Confirmed','Attempt #','Date of Attempt','Outcome/Notes',
     'Voicemail Left','Callback Date/Time','Notes'];
@@ -348,6 +344,7 @@ function exportCSV() {
     headers.map(esc).join(','),
     ...rows.map(r => [
       r.status, r.patient_name, r.patient_phone, r.referral_date,
+      (r.referred_for||[]).join('; '),
       r.caregiver_name, r.caregiver_relationship, r.caregiver_phone, r.caregiver_email,
       r.referral_source, r.eligibility_confirmed, r.attempt_number, r.date_of_attempt,
       r.outcome, r.voicemail_left, r.callback_datetime, r.notes
@@ -366,7 +363,7 @@ function exportCSV() {
 }
 
 function newRec() {
-  return {id:null,status:S.statuses.find(s=>s.active)?.label||'',patient_name:'',patient_phone:'',caregiver_name:'',caregiver_relationship:'',caregiver_phone:'',caregiver_email:'',referral_source:'',eligibility_confirmed:'',attempt_number:'',referral_date:'',date_of_attempt:'',outcome:'',voicemail_left:'',callback_datetime:'',notes:'',created_by:S.user.id};
+  return {id:null,status:S.statuses.find(s=>s.active)?.label||'',patient_name:'',patient_phone:'',caregiver_name:'',caregiver_relationship:'',caregiver_phone:'',caregiver_email:'',referral_source:'',eligibility_confirmed:'',attempt_number:'',referral_date:'',date_of_attempt:'',outcome:'',voicemail_left:'',callback_datetime:'',notes:'',referred_for:[],created_by:S.user.id};
 }
 
 // ── MODAL ──────────────────────────────────────────────────────────────────
@@ -415,14 +412,14 @@ function formHTML(d) {
   const rO = '<option value="">Select…</option>' + S.referrals.filter(r=>r.approved).map(r=>'<option value="'+h(r.label)+'" '+(d.referral_source===r.label?'selected':'')+'>'+h(r.label)+'</option>').join('');
   const eO = ['','Yes','No','Pending'].map(o=>'<option value="'+o+'" '+(d.eligibility_confirmed===o?'selected':'')+'>'+(o||'—')+'</option>').join('');
   const vO = ['','Yes','No'].map(o=>'<option value="'+o+'" '+(d.voicemail_left===o?'selected':'')+'>'+(o||'—')+'</option>').join('');
-  return '<div class="g2"><div><label class="fl">Status</label><select id="f-st" class="sel">'+sO+'</select></div><div><label class="fl">Attempt #</label><input id="f-at" class="inp" value="'+h(d.attempt_number)+'"/></div><div><label class="fl">Patient Name</label><input id="f-pn" class="inp" value="'+h(d.patient_name)+'" placeholder="Full name"/></div><div><label class="fl">Patient Phone</label><input id="f-pp" class="inp" type="tel" value="'+h(d.patient_phone)+'"/></div><div><label class="fl">Referral Date</label><input id="f-rd" class="inp" type="date" value="'+h(d.referral_date||'')+'"/></div><div></div></div><div class="sdiv">Caregiver / Proxy</div><div class="g2"><div><label class="fl">Name</label><input id="f-cn" class="inp" value="'+h(d.caregiver_name)+'"/></div><div><label class="fl">Relationship</label><input id="f-cr" class="inp" value="'+h(d.caregiver_relationship)+'"/></div><div><label class="fl">Phone</label><input id="f-cp" class="inp" type="tel" value="'+h(d.caregiver_phone)+'"/></div><div><label class="fl">Email</label><input id="f-ce" class="inp" type="email" value="'+h(d.caregiver_email)+'"/></div></div><div class="sdiv">Contact Attempt Details</div><div class="g2"><div><label class="fl">Referral Source</label><select id="f-rf" class="sel">'+rO+'</select></div><div><label class="fl">Eligibility Confirmed?</label><select id="f-el" class="sel">'+eO+'</select></div><div><label class="fl">Date of Attempt</label><input id="f-da" class="inp" type="date" value="'+h(d.date_of_attempt)+'"/></div><div><label class="fl">Voicemail Left?</label><select id="f-vm" class="sel">'+vO+'</select></div><div class="s2"><label class="fl">Callback Date / Time</label><input id="f-cb" class="inp" type="datetime-local" value="'+h(d.callback_datetime)+'"/></div><div class="s2"><label class="fl">Outcome / Notes</label><textarea id="f-oc" class="inp" rows="3" style="resize:vertical">'+h(d.outcome)+'</textarea></div><div class="s2"><label class="fl">Additional Notes</label><textarea id="f-nt" class="inp" rows="2" style="resize:vertical">'+h(d.notes)+'</textarea></div></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:0.5px solid #E4E7EC"><button id="f-cancel" class="btn btn-outline">Cancel</button><button id="f-save" class="btn btn-navy">Save record</button></div>';
+  return '<div class="g2"><div><label class="fl">Status</label><select id="f-st" class="sel">'+sO+'</select></div><div><label class="fl">Attempt #</label><input id="f-at" class="inp" value="'+h(d.attempt_number)+'"/></div><div><label class="fl">Patient Name</label><input id="f-pn" class="inp" value="'+h(d.patient_name)+'" placeholder="Full name"/></div><div><label class="fl">Patient Phone</label><input id="f-pp" class="inp" type="tel" value="'+h(d.patient_phone)+'"/></div><div><label class="fl">Referral Date</label><input id="f-rd" class="inp" type="date" value="'+h(d.referral_date||'')+'"/></div><div></div></div><div class="sdiv">Caregiver / Proxy</div><div class="g2"><div><label class="fl">Name</label><input id="f-cn" class="inp" value="'+h(d.caregiver_name)+'"/></div><div><label class="fl">Relationship</label><input id="f-cr" class="inp" value="'+h(d.caregiver_relationship)+'"/></div><div><label class="fl">Phone</label><input id="f-cp" class="inp" type="tel" value="'+h(d.caregiver_phone)+'"/></div><div><label class="fl">Email</label><input id="f-ce" class="inp" type="email" value="'+h(d.caregiver_email)+'"/></div></div>'+'<div class="sdiv">Referred For</div><div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px">'+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="ref-for-cb" value="PCP" '+((d.referred_for||[]).includes('PCP')?'checked':'')+'/>PCP</label>'+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="ref-for-cb" value="Motus Nova" '+((d.referred_for||[]).includes('Motus Nova')?'checked':'')+'/>Motus Nova</label>'+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="ref-for-cb" value="Therapy" '+((d.referred_for||[]).includes('Therapy')?'checked':'')+'/>Therapy</label>'+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="ref-for-cb" value="Psych" '+((d.referred_for||[]).includes('Psych')?'checked':'')+'/>Psych</label>'+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="ref-for-cb" value="CHHA" '+((d.referred_for||[]).includes('CHHA')?'checked':'')+'/>CHHA</label>'+'<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="ref-for-cb" value="HHA Services" '+((d.referred_for||[]).includes('HHA Services')?'checked':'')+'/>HHA Services</label>'+'</div>' + '<div class="sdiv">Contact Attempt Details</div><div class="g2"><div><label class="fl">Referral Source</label><select id="f-rf" class="sel">'+rO+'</select></div><div><label class="fl">Eligibility Confirmed?</label><select id="f-el" class="sel">'+eO+'</select></div><div><label class="fl">Date of Attempt</label><input id="f-da" class="inp" type="date" value="'+h(d.date_of_attempt)+'"/></div><div><label class="fl">Voicemail Left?</label><select id="f-vm" class="sel">'+vO+'</select></div><div class="s2"><label class="fl">Callback Date / Time</label><input id="f-cb" class="inp" type="datetime-local" value="'+h(d.callback_datetime)+'"/></div><div class="s2"><label class="fl">Outcome / Notes</label><textarea id="f-oc" class="inp" rows="3" style="resize:vertical">'+h(d.outcome)+'</textarea></div><div class="s2"><label class="fl">Additional Notes</label><textarea id="f-nt" class="inp" rows="2" style="resize:vertical">'+h(d.notes)+'</textarea></div></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:0.5px solid #E4E7EC"><button id="f-cancel" class="btn btn-outline">Cancel</button><button id="f-save" class="btn btn-navy">Save record</button></div>';
 }
 
 function bindForm() {
   $('f-cancel').onclick = closeModal;
   $('f-save').onclick = async () => {
     const d = S.modal.data;
-    const rec = {status:$('f-st').value,attempt_number:$('f-at').value,patient_name:$('f-pn').value,patient_phone:$('f-pp').value,referral_date:$('f-rd')?.value||'',caregiver_name:$('f-cn').value,caregiver_relationship:$('f-cr').value,caregiver_phone:$('f-cp').value,caregiver_email:$('f-ce').value,referral_source:$('f-rf').value,eligibility_confirmed:$('f-el').value,date_of_attempt:$('f-da').value,voicemail_left:$('f-vm').value,callback_datetime:$('f-cb').value,outcome:$('f-oc').value,notes:$('f-nt').value,created_by:d.created_by||S.user.id};
+    const rec = {status:$('f-st').value,attempt_number:$('f-at').value,patient_name:$('f-pn').value,patient_phone:$('f-pp').value,referral_date:$('f-rd')?.value||'',caregiver_name:$('f-cn').value,caregiver_relationship:$('f-cr').value,caregiver_phone:$('f-cp').value,caregiver_email:$('f-ce').value,referral_source:$('f-rf').value,eligibility_confirmed:$('f-el').value,date_of_attempt:$('f-da').value,voicemail_left:$('f-vm').value,callback_datetime:$('f-cb').value,outcome:$('f-oc').value,notes:$('f-nt').value,referred_for:Array.from(document.querySelectorAll('.ref-for-cb:checked')).map(cb=>cb.value),created_by:d.created_by||S.user.id};
     const btn=$('f-save'); btn.innerHTML='<div class="spinner"></div>'; btn.disabled=true;
     try {
       if (d.id) {
@@ -455,7 +452,8 @@ function bindForm() {
 function viewHTML(r) {
   const TEAL = '#2BA8B4';
   const owner = S.users.find(u => u.id===r.created_by);
-  const pairs = [['Status',badge(r.status)],['Attempt #',h(r.attempt_number)],['Patient Name',h(r.patient_name)],['Patient Phone',h(r.patient_phone)],['Referral Date',h(r.referral_date)],['Caregiver Name',h(r.caregiver_name)],['Relationship',h(r.caregiver_relationship)],['Caregiver Phone',h(r.caregiver_phone)],['Caregiver Email',h(r.caregiver_email)],['Referral Source',h(r.referral_source)],['Eligibility',eligBadge(r.eligibility_confirmed)],['Date of Attempt',h(r.date_of_attempt)],['Voicemail Left',h(r.voicemail_left)]];
+  const referredForDisplay = (r.referred_for&&r.referred_for.length) ? r.referred_for.map(x=>h(x)).join(', ') : '—';
+  const pairs = [['Status',badge(r.status)],['Attempt #',h(r.attempt_number)],['Patient Name',h(r.patient_name)],['Patient Phone',h(r.patient_phone)],['Referral Date',h(r.referral_date)],['Referred For',referredForDisplay],['Caregiver Name',h(r.caregiver_name)],['Relationship',h(r.caregiver_relationship)],['Caregiver Phone',h(r.caregiver_phone)],['Caregiver Email',h(r.caregiver_email)],['Referral Source',h(r.referral_source)],['Eligibility',eligBadge(r.eligibility_confirmed)],['Date of Attempt',h(r.date_of_attempt)],['Voicemail Left',h(r.voicemail_left)]];
   const g = pairs.map(([l,v]) => '<div class="dr"><div class="dl">'+l+'</div><div class="dv">'+(v||'—')+'</div></div>').join('');
   const ce = canEdit(r);
   return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:8px">'+g+'<div class="dr" style="grid-column:span 2"><div class="dl">Callback</div><div class="dv">'+(r.callback_datetime?r.callback_datetime.replace('T',' '):'—')+'</div></div><div class="dr" style="grid-column:span 2"><div class="dl">Outcome / Notes</div><div class="dv">'+(h(r.outcome)||'—')+'</div></div><div class="dr" style="grid-column:span 2"><div class="dl">Additional Notes</div><div class="dv">'+(h(r.notes)||'—')+'</div></div>'+(owner?'<div class="dr" style="grid-column:span 2"><div class="dl">Created by</div><div class="dv">'+h(owner.name)+'</div></div>':'')+'</div><div style="display:flex;gap:8px;padding-top:14px;border-top:0.5px solid #E4E7EC;flex-wrap:wrap">'+(ce?'<button id="v-edit" class="btn btn-navy">Edit</button>':'')+'<button id="v-email" class="btn btn-teal">✉ Email summary</button><button id="v-cb" class="btn btn-outline">📅 Callback</button>'+(ce?'<button id="v-del" class="btn btn-red">Delete</button>':'')+'<button id="v-close" class="btn btn-outline" style="margin-left:auto">Close</button></div>';
