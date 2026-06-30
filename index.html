@@ -246,7 +246,6 @@ function trackerPage() {
     {label:'Attempt #',   field:'attempt_number'},
     {label:'Date',        field:'date_of_attempt'},
     {label:'Voicemail',   field:'voicemail_left'},
-    {label:'Onboard',     field:''},
     {label:'',            field:''},
   ];
 
@@ -257,7 +256,7 @@ function trackerPage() {
   ).join('');
 
   const rows = filt.length === 0
-    ? '<tr><td colspan="12" style="padding:32px;text-align:center;color:#aaa">No records found.</td></tr>'
+    ? '<tr><td colspan="11" style="padding:32px;text-align:center;color:#aaa">No records found.</td></tr>'
     : filt.map(r =>
       '<tr class="crow" data-id="' + r.id + '">' +
       '<td>' + badge(r.status) + '</td>' +
@@ -270,7 +269,6 @@ function trackerPage() {
       '<td style="text-align:center">' + (r.attempt_number||'—') + '</td>' +
       '<td style="color:#667085;white-space:nowrap">' + (r.date_of_attempt||'—') + '</td>' +
       '<td style="color:' + (r.voicemail_left==='Yes'?'#0F6E56':r.voicemail_left==='No'?'#993C1D':'#667085') + '">' + (r.voicemail_left||'—') + '</td>' +
-      '<td style="text-align:center"><input type="checkbox" class="onboard-cb" data-id="' + r.id + '" title="Mark as onboarded — moves to Current Patients" ' + (r.onboarded?'checked':'') + '/></td>' +
       '<td>' + (canEdit(r) ? '<span class="edit-rec" data-id="' + r.id + '" style="color:' + TEAL + ';cursor:pointer;font-size:12px">Edit</span>' : '') + '</td>' +
       '</tr>'
     ).join('');
@@ -354,23 +352,6 @@ function bindTracker() {
   });
   document.querySelectorAll('.edit-rec').forEach(e => {
     e.onclick = ev => { ev.stopPropagation(); const rec=S.records.find(x=>x.id==e.dataset.id); if(rec) openModal('edit',{...rec}); };
-  });
-
-  // Onboard checkbox — moves patient to Current Patients
-  document.querySelectorAll('.onboard-cb').forEach(cb => {
-    cb.onclick = async ev => {
-      ev.stopPropagation();
-      const id = cb.dataset.id;
-      const rec = S.records.find(x => x.id == id);
-      if (!rec) return;
-      const newVal = cb.checked;
-      try {
-        await db.patch('mhg_records', {onboarded:newVal}, {id:'eq.'+id});
-        S.records = S.records.map(r => r.id==id ? {...r,onboarded:newVal} : r);
-        toast(newVal ? 'Patient onboarded — moved to Current Patients' : 'Patient moved back to active tracking');
-        rerender();
-      } catch(e) { toast('Error: '+e.message,'error'); cb.checked = !newVal; }
-    };
   });
 }
 
@@ -626,7 +607,7 @@ function viewHTML(r) {
   const pairs = [['Status',badge(r.status)],['Attempt #',h(r.attempt_number)],['Patient Name',h(r.patient_name)],['Patient Phone',h(r.patient_phone)],['Referral Date',h(r.referral_date)],['Referred For',referredForDisplay],['Caregiver Name',h(r.caregiver_name)],['Relationship',h(r.caregiver_relationship)],['Caregiver Phone',h(r.caregiver_phone)],['Caregiver Email',h(r.caregiver_email)],['Referral Source',h(r.referral_source)],['Eligibility',eligBadge(r.eligibility_confirmed)],['Date of Attempt',h(r.date_of_attempt)],['Voicemail Left',h(r.voicemail_left)]];
   const g = pairs.map(([l,v]) => '<div class="dr"><div class="dl">'+l+'</div><div class="dv">'+(v||'—')+'</div></div>').join('');
   const ce = canEdit(r);
-  return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:8px">'+g+'<div class="dr" style="grid-column:span 2"><div class="dl">Callback</div><div class="dv">'+(r.callback_datetime?r.callback_datetime.replace('T',' '):'—')+'</div></div><div class="dr" style="grid-column:span 2"><div class="dl">Outcome / Notes</div><div class="dv">'+(h(r.outcome)||'—')+'</div></div><div class="dr" style="grid-column:span 2"><div class="dl">Additional Notes</div><div class="dv">'+(h(r.notes)||'—')+'</div></div>'+(owner?'<div class="dr" style="grid-column:span 2"><div class="dl">Created by</div><div class="dv">'+h(owner.name)+'</div></div>':'')+'</div><div style="display:flex;gap:8px;padding-top:14px;border-top:0.5px solid #E4E7EC;flex-wrap:wrap">'+(ce?'<button id="v-edit" class="btn btn-navy">Edit</button>':'')+'<button id="v-email" class="btn btn-teal">✉ Email summary</button><button id="v-cb" class="btn btn-outline">📅 Callback</button>'+(ce?'<button id="v-del" class="btn btn-red">Delete</button>':'')+'<button id="v-close" class="btn btn-outline" style="margin-left:auto">Close</button></div>';
+  return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:8px">'+g+'<div class="dr" style="grid-column:span 2"><div class="dl">Callback</div><div class="dv">'+(r.callback_datetime?r.callback_datetime.replace('T',' '):'—')+'</div></div><div class="dr" style="grid-column:span 2"><div class="dl">Outcome / Notes</div><div class="dv">'+(h(r.outcome)||'—')+'</div></div><div class="dr" style="grid-column:span 2"><div class="dl">Additional Notes</div><div class="dv">'+(h(r.notes)||'—')+'</div></div>'+(owner?'<div class="dr" style="grid-column:span 2"><div class="dl">Created by</div><div class="dv">'+h(owner.name)+'</div></div>':'')+'</div><div style="display:flex;gap:8px;padding-top:14px;border-top:0.5px solid #E4E7EC;flex-wrap:wrap">'+(ce?'<button id="v-edit" class="btn btn-navy">Edit</button>':'')+'<button id="v-email" class="btn btn-teal">✉ Email summary</button><button id="v-cb" class="btn btn-outline">📅 Callback</button>'+(!r.onboarded?'<button id="v-onboard" class="btn" style="background:#0F6E56;color:#fff">✓ Onboard Patient</button>':'<span class="badge" style="background:#E1F5EE;color:#0F6E56;align-self:center">✓ Onboarded</span>')+(ce?'<button id="v-del" class="btn btn-red">Delete</button>':'')+'<button id="v-close" class="btn btn-outline" style="margin-left:auto">Close</button></div>';
 }
 
 function bindView() {
@@ -634,6 +615,15 @@ function bindView() {
   const ve=$('v-edit'); if(ve) ve.onclick=()=>openModal('edit',{...r});
   $('v-email').onclick=()=>openModal('email',r);
   $('v-cb').onclick=()=>openModal('callback',r);
+  const vo=$('v-onboard'); if(vo) vo.onclick=async()=>{
+    if(!confirm('Onboard ' + r.patient_name + '? This moves them to the Current Patients tab.')) return;
+    const btn=vo; btn.innerHTML='<div class="spinner"></div>'; btn.disabled=true;
+    try {
+      await db.patch('mhg_records', {onboarded:true}, {id:'eq.'+r.id});
+      S.records = S.records.map(x => x.id===r.id ? {...x,onboarded:true} : x);
+      S.modal=null; toast('Patient onboarded — moved to Current Patients'); render();
+    } catch(e) { toast('Error: '+e.message,'error'); btn.innerHTML='✓ Onboard Patient'; btn.disabled=false; }
+  };
   const vd=$('v-del'); if(vd) vd.onclick=async()=>{
     if(!confirm('Delete this record?')) return;
     try { await db.del('mhg_records',{id:'eq.'+r.id}); S.records=S.records.filter(x=>x.id!==r.id); S.modal=null; toast('Record deleted'); render(); }
