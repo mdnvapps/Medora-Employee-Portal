@@ -457,8 +457,8 @@ function profileHTML(r) {
   const approvedRefs = S.referrals.filter(rf=>rf.approved);
   const refDropdownItems = approvedRefs.map(rf => {
     const checked = referredToIds.includes(rf.id);
-    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px" onmouseover="this.style.background=\'#F5F7FA\'" onmouseout="this.style.background=\'\'">' +
-      '<input type="checkbox" class="referred-to-cb" data-refid="' + rf.id + '" ' + (checked?'checked':'') + ' style="margin:0"/>' + h(rf.label) + '</label>';
+    return '<label class="dd-option" data-checked="' + (checked?'1':'0') + '" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:14px;' + (checked ? 'background:#1B6FE0;color:#fff;' : 'color:#101828;') + '">' +
+      '<input type="checkbox" class="referred-to-cb" data-refid="' + rf.id + '" ' + (checked?'checked':'') + ' style="margin:0;accent-color:#1B6FE0"/>' + h(rf.label) + '</label>';
   }).join('');
   const selectedRefBadges = referredToIds.length
     ? referredToIds.map(id => {
@@ -488,10 +488,10 @@ function profileHTML(r) {
     '</div>' +
     '<div class="sdiv">Referred To</div>' +
     '<div style="position:relative;margin-bottom:8px">' +
-      '<button type="button" id="pf-dd-toggle" class="inp" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;text-align:left;background:#fff">' +
-        '<span id="pf-dd-label">' + selectedCountLabel + '</span><span style="color:#667085">▾</span>' +
+      '<button type="button" id="pf-dd-toggle" style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:6px;border:1px solid #D0D5DD;font-size:14px;color:#101828;background:#fff;display:flex;justify-content:space-between;align-items:center;cursor:pointer;text-align:left">' +
+        '<span id="pf-dd-label">' + selectedCountLabel + '</span><span style="color:#667085;font-size:12px">▾</span>' +
       '</button>' +
-      '<div id="pf-dd-panel" class="hide" style="position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:0.5px solid #D0D5DD;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);max-height:220px;overflow-y:auto;z-index:20">' +
+      '<div id="pf-dd-panel" class="hide" style="position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid #D0D5DD;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:240px;overflow-y:auto;z-index:30;padding:4px 0">' +
         refDropdownItems +
       '</div>' +
     '</div>' +
@@ -537,7 +537,14 @@ function bindProfile() {
     if (label) label.textContent = checked.length ? checked.length + ' selected' : 'Select referral sources…';
   }
   document.querySelectorAll('.referred-to-cb').forEach(cb => {
-    cb.onchange = refreshReferredToDisplay;
+    cb.onchange = () => {
+      const row = cb.closest('.dd-option');
+      if (row) {
+        if (cb.checked) { row.style.background = '#1B6FE0'; row.style.color = '#fff'; }
+        else { row.style.background = ''; row.style.color = '#101828'; }
+      }
+      refreshReferredToDisplay();
+    };
   });
 
   const unboardBtn = $('pf-unboard');
