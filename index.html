@@ -454,11 +454,16 @@ function profileHTML(r) {
   const refForDisplay = (r.referred_for&&r.referred_for.length) ? r.referred_for.map(x=>h(x)).join(', ') : '—';
   const referredToIds = r.referred_to || [];
 
-  const refSourceCheckboxes = S.referrals.filter(rf=>rf.approved).map(rf => {
-    const checked = referredToIds.includes(rf.id);
-    return '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:4px 0">' +
-      '<input type="checkbox" class="referred-to-cb" data-refid="' + rf.id + '" ' + (checked?'checked':'') + '/>' + h(rf.label) + '</label>';
-  }).join('');
+  const approvedRefs = S.referrals.filter(rf=>rf.approved);
+  const refSourceOptions = approvedRefs.map(rf =>
+    '<option value="' + rf.id + '" ' + (referredToIds.includes(rf.id)?'selected':'') + '>' + h(rf.label) + '</option>'
+  ).join('');
+  const selectedRefBadges = referredToIds.length
+    ? referredToIds.map(id => {
+        const rf = approvedRefs.find(x=>x.id===id);
+        return rf ? '<span class="badge" style="background:#E6F1FB;color:#185FA5;margin-right:4px">' + h(rf.label) + '</span>' : '';
+      }).join('')
+    : '<span style="color:#ccc;font-size:13px">None selected</span>';
 
   return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:16px">' +
       '<div class="dr"><div class="dl">Patient Name</div><div class="dv">' + h(r.patient_name) + '</div></div>' +
@@ -478,8 +483,9 @@ function profileHTML(r) {
         ['','Completed','Scheduled','Rescheduled','No Show','Cancelled'].map(o=>'<option value="'+o+'" '+(r.initial_visit_status===o?'selected':'')+'>'+(o||'Select…')+'</option>').join('') +
       '</select></div>' +
     '</div>' +
-    '<div class="sdiv">Referred To (outbound — referral sources this patient was sent to)</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;margin-bottom:16px">' + refSourceCheckboxes + '</div>' +
+    '<div class="sdiv">Referred To</div>' +
+    '<div style="margin-bottom:8px"><select id="pf-referred-to" class="sel" multiple size="5" style="height:auto">' + refSourceOptions + '</select><div style="font-size:11px;color:#667085;margin-top:4px">Hold Ctrl (Windows) or Cmd (Mac) to select multiple</div></div>' +
+    '<div id="pf-referred-to-display" style="margin-bottom:16px">' + selectedRefBadges + '</div>' +
     '<div style="display:flex;gap:10px;padding-top:14px;border-top:0.5px solid #E4E7EC;flex-wrap:wrap">' +
       '<button id="pf-save" class="btn btn-navy">Save changes</button>' +
       '<button id="pf-unboard" class="btn btn-outline" style="color:#993C1D">Move back to Tracker</button>' +
@@ -490,28 +496,59 @@ function profileHTML(r) {
 function bindProfile() {
   const r = S.modal.data;
   $('pf-close').onclick = closeModal;
-  $('pf-unboard').onclick = async () => {
-    if (!confirm('Move this patient back to the active Tracker?')) return;
-    try {
-      await db.patch('mhg_records', {onboarded:false}, {id:'eq.'+r.id});
-      S.records = S.records.map(x => x.id===r.id ? {...x,onboarded:false} : x);
-      S.modal=null; S.page='tracker'; toast('Moved back to Tracker'); render();
-    } catch(e) { toast('Error: '+e.message,'error'); }
-  };
-  $('pf-save').onclick = async () => {
-    const referredTo = Array.from(document.querySelectorAll('.referred-to-cb:checked')).map(cb => cb.dataset.refid);
-    const updates = {
-      initial_visit_date: $('pf-ivd').value,
-      initial_visit_status: $('pf-ivs').value,
-      referred_to: referredTo
+
+  // Live-update badge display when multi-select changes
+  const sel = $('pf-referred-to');
+  if (sel) {
+    sel.onchange = () => {
+      const ids = Array.from(sel.selectedOptions).map(o => o.value);
+      const approvedRefs = S.referrals.filter(rf=>rf.approved);
+      const disp = $('pf-referred-to-display');
+      disp.innerHTML = ids.length
+        ? ids.map(id => { const rf=approvedRefs.find(x=>x.id===id); return rf ? '<span class="badge" style="background:#E6F1FB;color:#185FA5;margin-right:4px">'+h(rf.label)+'</span>' : ''; }).join('')
+        : '<span style="color:#ccc;font-size:13px">None selected</span>';
     };
-    const btn = $('pf-save'); btn.innerHTML='<div class="spinner"></div>'; btn.disabled=true;
-    try {
-      await db.patch('mhg_records', updates, {id:'eq.'+r.id});
-      S.records = S.records.map(x => x.id===r.id ? {...x,...updates} : x);
-      toast('Patient profile updated'); closeModal();
-    } catch(e) { toast('Error: '+e.message,'error'); btn.innerHTML='Save changes'; btn.disabled=false; }
-  };
+  }
+
+  const unboardBtn = $('pf-unboard');
+  if (unboardBtn) {
+    unboardBtn.onclick = async () => {
+      if (!confirm('Move this patient back to the active Tracker?')) return;
+      const btn = unboardBtn; const origHTML = btn.innerHTML;
+      btn.innerHTML = '<div class="spinner"></div>'; btn.disabled = true;
+      try {
+        await db.patch('mhg_records', {onboarded:false}, {id:'eq.'+r.id});
+        S.records = S.records.map(x => x.id===r.id ? {...x,onboarded:false} : x);
+        S.modal=null; S.page='tracker'; toast('Moved back to Tracker'); render();
+      } catch(e) {
+        toast('Error: '+e.message,'error');
+        btn.innerHTML = origHTML; btn.disabled = false;
+      }
+    };
+  }
+
+  const saveBtn = $('pf-save');
+  if (saveBtn) {
+    saveBtn.onclick = async () => {
+      const referredTo = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
+      const updates = {
+        initial_visit_date: $('pf-ivd').value,
+        initial_visit_status: $('pf-ivs').value,
+        referred_to: referredTo
+      };
+      const btn = saveBtn; const origHTML = btn.innerHTML;
+      btn.innerHTML = '<div class="spinner"></div>'; btn.disabled = true;
+      try {
+        await db.patch('mhg_records', updates, {id:'eq.'+r.id});
+        S.records = S.records.map(x => x.id===r.id ? {...x,...updates} : x);
+        toast('Patient profile updated');
+        closeModal();
+      } catch(e) {
+        toast('Error: '+e.message,'error');
+        btn.innerHTML = origHTML; btn.disabled = false;
+      }
+    };
+  }
 }
 
 // ── MODAL ──────────────────────────────────────────────────────────────────
@@ -616,13 +653,20 @@ function bindView() {
   $('v-email').onclick=()=>openModal('email',r);
   $('v-cb').onclick=()=>openModal('callback',r);
   const vo=$('v-onboard'); if(vo) vo.onclick=async()=>{
+    if (vo.disabled) return; // guard against double-click
     if(!confirm('Onboard ' + r.patient_name + '? This moves them to the Current Patients tab.')) return;
-    const btn=vo; btn.innerHTML='<div class="spinner"></div>'; btn.disabled=true;
+    vo.innerHTML='<div class="spinner"></div>'; vo.disabled=true;
     try {
       await db.patch('mhg_records', {onboarded:true}, {id:'eq.'+r.id});
       S.records = S.records.map(x => x.id===r.id ? {...x,onboarded:true} : x);
-      S.modal=null; toast('Patient onboarded — moved to Current Patients'); render();
-    } catch(e) { toast('Error: '+e.message,'error'); btn.innerHTML='✓ Onboard Patient'; btn.disabled=false; }
+      toast('Patient onboarded — moved to Current Patients');
+      S.modal=null;
+      const ovEl = $('ov'); if (ovEl) ovEl.remove();
+      rerender();
+    } catch(e) {
+      toast('Error: '+e.message,'error');
+      if (document.body.contains(vo)) { vo.innerHTML='✓ Onboard Patient'; vo.disabled=false; }
+    }
   };
   const vd=$('v-del'); if(vd) vd.onclick=async()=>{
     if(!confirm('Delete this record?')) return;
