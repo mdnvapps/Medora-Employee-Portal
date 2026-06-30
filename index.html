@@ -455,15 +455,18 @@ function profileHTML(r) {
   const referredToIds = r.referred_to || [];
 
   const approvedRefs = S.referrals.filter(rf=>rf.approved);
-  const refSourceOptions = approvedRefs.map(rf =>
-    '<option value="' + rf.id + '" ' + (referredToIds.includes(rf.id)?'selected':'') + '>' + h(rf.label) + '</option>'
-  ).join('');
+  const refDropdownItems = approvedRefs.map(rf => {
+    const checked = referredToIds.includes(rf.id);
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:13px" onmouseover="this.style.background=\'#F5F7FA\'" onmouseout="this.style.background=\'\'">' +
+      '<input type="checkbox" class="referred-to-cb" data-refid="' + rf.id + '" ' + (checked?'checked':'') + ' style="margin:0"/>' + h(rf.label) + '</label>';
+  }).join('');
   const selectedRefBadges = referredToIds.length
     ? referredToIds.map(id => {
         const rf = approvedRefs.find(x=>x.id===id);
         return rf ? '<span class="badge" style="background:#E6F1FB;color:#185FA5;margin-right:4px">' + h(rf.label) + '</span>' : '';
       }).join('')
     : '<span style="color:#ccc;font-size:13px">None selected</span>';
+  const selectedCountLabel = referredToIds.length ? referredToIds.length + ' selected' : 'Select referral sources…';
 
   return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:16px">' +
       '<div class="dr"><div class="dl">Patient Name</div><div class="dv">' + h(r.patient_name) + '</div></div>' +
@@ -484,7 +487,14 @@ function profileHTML(r) {
       '</select></div>' +
     '</div>' +
     '<div class="sdiv">Referred To</div>' +
-    '<div style="margin-bottom:8px"><select id="pf-referred-to" class="sel" multiple size="5" style="height:auto">' + refSourceOptions + '</select><div style="font-size:11px;color:#667085;margin-top:4px">Hold Ctrl (Windows) or Cmd (Mac) to select multiple</div></div>' +
+    '<div style="position:relative;margin-bottom:8px">' +
+      '<button type="button" id="pf-dd-toggle" class="inp" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;text-align:left;background:#fff">' +
+        '<span id="pf-dd-label">' + selectedCountLabel + '</span><span style="color:#667085">▾</span>' +
+      '</button>' +
+      '<div id="pf-dd-panel" class="hide" style="position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:0.5px solid #D0D5DD;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);max-height:220px;overflow-y:auto;z-index:20">' +
+        refDropdownItems +
+      '</div>' +
+    '</div>' +
     '<div id="pf-referred-to-display" style="margin-bottom:16px">' + selectedRefBadges + '</div>' +
     '<div style="display:flex;gap:10px;padding-top:14px;border-top:0.5px solid #E4E7EC;flex-wrap:wrap">' +
       '<button id="pf-save" class="btn btn-navy">Save changes</button>' +
@@ -497,18 +507,38 @@ function bindProfile() {
   const r = S.modal.data;
   $('pf-close').onclick = closeModal;
 
-  // Live-update badge display when multi-select changes
-  const sel = $('pf-referred-to');
-  if (sel) {
-    sel.onchange = () => {
-      const ids = Array.from(sel.selectedOptions).map(o => o.value);
-      const approvedRefs = S.referrals.filter(rf=>rf.approved);
-      const disp = $('pf-referred-to-display');
-      disp.innerHTML = ids.length
-        ? ids.map(id => { const rf=approvedRefs.find(x=>x.id===id); return rf ? '<span class="badge" style="background:#E6F1FB;color:#185FA5;margin-right:4px">'+h(rf.label)+'</span>' : ''; }).join('')
-        : '<span style="color:#ccc;font-size:13px">None selected</span>';
+  // Dropdown toggle open/close
+  const ddToggle = $('pf-dd-toggle');
+  const ddPanel = $('pf-dd-panel');
+  if (ddToggle && ddPanel) {
+    ddToggle.onclick = (e) => {
+      e.stopPropagation();
+      ddPanel.classList.toggle('hide');
     };
+    // Close when clicking outside
+    document.addEventListener('click', function closeDD(e) {
+      if (!ddPanel.classList.contains('hide') && !ddPanel.contains(e.target) && e.target !== ddToggle && !ddToggle.contains(e.target)) {
+        ddPanel.classList.add('hide');
+      }
+    });
   }
+
+  // Live-update badges + label when a checkbox inside the dropdown changes
+  function refreshReferredToDisplay() {
+    const approvedRefs = S.referrals.filter(rf=>rf.approved);
+    const checked = Array.from(document.querySelectorAll('.referred-to-cb:checked')).map(cb => cb.dataset.refid);
+    const disp = $('pf-referred-to-display');
+    if (disp) {
+      disp.innerHTML = checked.length
+        ? checked.map(id => { const rf=approvedRefs.find(x=>x.id===id); return rf ? '<span class="badge" style="background:#E6F1FB;color:#185FA5;margin-right:4px">'+h(rf.label)+'</span>' : ''; }).join('')
+        : '<span style="color:#ccc;font-size:13px">None selected</span>';
+    }
+    const label = $('pf-dd-label');
+    if (label) label.textContent = checked.length ? checked.length + ' selected' : 'Select referral sources…';
+  }
+  document.querySelectorAll('.referred-to-cb').forEach(cb => {
+    cb.onchange = refreshReferredToDisplay;
+  });
 
   const unboardBtn = $('pf-unboard');
   if (unboardBtn) {
@@ -530,7 +560,7 @@ function bindProfile() {
   const saveBtn = $('pf-save');
   if (saveBtn) {
     saveBtn.onclick = async () => {
-      const referredTo = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
+      const referredTo = Array.from(document.querySelectorAll('.referred-to-cb:checked')).map(cb => cb.dataset.refid);
       const updates = {
         initial_visit_date: $('pf-ivd').value,
         initial_visit_status: $('pf-ivs').value,
