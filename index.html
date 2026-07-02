@@ -406,36 +406,41 @@ function currentPatientsPage() {
   const NAVY='#1B2A4A', TEAL='#2BA8B4';
   const onboarded = S.records.filter(r => r.onboarded);
   const q = (S.search||'').toLowerCase();
-  const filtered = onboarded.filter(r => !q || (r.patient_name||'').toLowerCase().includes(q) || (r.patient_phone||'').includes(q));
+  const filtered = onboarded.filter(r => !q ||
+    (r.patient_name||'').toLowerCase().includes(q) ||
+    (r.patient_phone||'').includes(q) ||
+    (r.referral_source||'').toLowerCase().includes(q)
+  );
 
-  const cards = filtered.length === 0
-    ? '<div style="padding:40px;text-align:center;color:#aaa">No current patients yet. Check the "Onboard" box in the Tracker to move a patient here.</div>'
+  const thRow = ['Patient Name','Phone','Referral Date','Referral Source','Referred For','Initial Visit Date','Initial Visit Status','Status',''].map(c=>'<th>'+c+'</th>').join('');
+
+  const rows = filtered.length === 0
+    ? '<tr><td colspan="9" style="padding:32px;text-align:center;color:#aaa">No current patients yet. Onboard a patient from the Tracker to see them here.</td></tr>'
     : filtered.map(r => {
-        const refForBadges = (r.referred_for&&r.referred_for.length) ? r.referred_for.map(x=>'<span class="badge" style="background:#E6F1FB;color:#185FA5;margin-right:3px">'+h(x)+'</span>').join('') : '<span style="color:#ccc">—</span>';
-        return '<div class="card cp-card" data-id="' + r.id + '" style="padding:16px 18px;margin-bottom:10px;cursor:pointer">' +
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">' +
-          '<div>' +
-            '<div style="font-weight:600;font-size:15px;color:' + NAVY + '">' + h(r.patient_name) + '</div>' +
-            '<div style="font-size:12px;color:#667085;margin-top:2px">' + h(r.patient_phone) + ' &nbsp;·&nbsp; Referred: ' + (r.referral_date||'—') + '</div>' +
-          '</div>' +
-          '<div>' + badge(r.status) + '</div>' +
-          '</div>' +
-          '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">' +
-            '<span style="font-size:11px;color:#667085;font-weight:500">Referred for:</span>' + refForBadges +
-          '</div>' +
-          '<div style="margin-top:8px;font-size:12px;color:#667085">' +
-            'Initial visit: <strong>' + (r.initial_visit_date||'Not set') + '</strong>' +
-            (r.initial_visit_status ? ' &nbsp;·&nbsp; Status: <strong>' + h(r.initial_visit_status) + '</strong>' : '') +
-          '</div>' +
-        '</div>';
+        const refForBadges = (r.referred_for&&r.referred_for.length)
+          ? r.referred_for.map(x=>'<span class="badge" style="background:#E6F1FB;color:#185FA5;margin-right:3px;font-size:11px">'+h(x)+'</span>').join('')
+          : '<span style="color:#ccc">—</span>';
+        return '<tr class="crow cp-card" data-id="' + r.id + '">' +
+          '<td style="font-weight:500;color:' + NAVY + ';white-space:nowrap">' + h(r.patient_name) + '</td>' +
+          '<td style="color:#667085">' + h(r.patient_phone) + '</td>' +
+          '<td style="color:#667085;white-space:nowrap">' + (r.referral_date||'—') + '</td>' +
+          '<td style="color:#667085">' + (h(r.referral_source)||'—') + '</td>' +
+          '<td>' + refForBadges + '</td>' +
+          '<td style="color:#667085;white-space:nowrap">' + (r.initial_visit_date||'—') + '</td>' +
+          '<td>' + (r.initial_visit_status ? '<span class="badge" style="background:#E1F5EE;color:#0F6E56">'+h(r.initial_visit_status)+'</span>' : '<span style="color:#ccc">—</span>') + '</td>' +
+          '<td>' + badge(r.status) + '</td>' +
+          '<td><span style="color:' + TEAL + ';cursor:pointer;font-size:12px">View</span></td>' +
+        '</tr>';
       }).join('');
 
-  return '<div style="max-width:1000px;margin:0 auto;padding:20px 14px">' +
+  return '<div style="max-width:1250px;margin:0 auto;padding:20px 14px">' +
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">' +
-      '<div style="font-size:20px;font-weight:700;color:' + NAVY + '">Current Patients</div>' +
-      '<input id="srch" class="inp" placeholder="Search current patients…" value="' + h(S.search) + '" style="max-width:280px"/>' +
+      '<div style="font-size:20px;font-weight:700;color:' + NAVY + '">Current Patients <span style="font-size:14px;font-weight:400;color:#667085">('+filtered.length+')</span></div>' +
+      '<input id="srch" class="inp" placeholder="Search current patients..." value="' + h(S.search) + '" style="max-width:280px"/>' +
     '</div>' +
-    cards +
+    '<div class="card"><div style="overflow-x:auto">' +
+      '<table><thead><tr>' + thRow + '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</div></div>' +
   '</div>';
 }
 
@@ -472,7 +477,8 @@ function profileHTML(r) {
       '<div class="dr"><div class="dl">Patient Name</div><div class="dv">' + h(r.patient_name) + '</div></div>' +
       '<div class="dr"><div class="dl">Phone</div><div class="dv">' + h(r.patient_phone) + '</div></div>' +
       '<div class="dr"><div class="dl">Status</div><div class="dv">' + badge(r.status) + '</div></div>' +
-      '<div class="dr"><div class="dl">Referral Date</div><div class="dv">' + h(r.referral_date)+'</div></div>' +
+      '<div class="dr"><div class="dl">Referral Date</div><div class="dv">' + (h(r.referral_date)||'—') + '</div></div>' +
+      '<div class="dr"><div class="dl">Referral Source</div><div class="dv">' + (h(r.referral_source)||'—') + '</div></div>' +
       '<div class="dr" style="grid-column:span 2"><div class="dl">Referred For</div><div class="dv">' + refForDisplay + '</div></div>' +
       '<div class="dr"><div class="dl">Caregiver Name</div><div class="dv">' + (h(r.caregiver_name)||'—') + '</div></div>' +
       '<div class="dr"><div class="dl">Caregiver Relationship</div><div class="dv">' + (h(r.caregiver_relationship)||'—') + '</div></div>' +
